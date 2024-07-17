@@ -1,30 +1,5 @@
-//! A wrapper for lazy initialized values.
-//!
-//! Unlike [`lazy_static`][1], this crate does not provide concurrency safety.
-//! The value **MUST** be used after only **ONE** initialization. However, it
-//! can be more efficient, as there is no need to check whether other threads
-//! are also performing initialization at the same time.
-//!
-//! # Examples
-//!
-//! ```
-//! use lazy_init::LazyInit;
-//!
-//! static VALUE: LazyInit<u32> = LazyInit::new();
-//! assert!(!VALUE.is_init());
-//! // println!("{}", *VALUE); // panic: use uninitialized value
-//! assert_eq!(VALUE.try_get(), None);
-//!
-//! VALUE.init_by(233);
-//! // VALUE.init_by(666); // panic: already initialized
-//! assert!(VALUE.is_init());
-//! assert_eq!(*VALUE, 233);
-//! assert_eq!(VALUE.try_get(), Some(&233));
-//! ```
-//!
-//! [1]: https://docs.rs/lazy_static/latest/lazy_static/
-
 #![no_std]
+#![doc = include_str!("../README.md")]
 
 use core::cell::UnsafeCell;
 use core::fmt;
