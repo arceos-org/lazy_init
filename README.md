@@ -6,10 +6,9 @@
 
 Initialize a static value lazily.
 
-Unlike [`lazy_static`][1], this crate does not provide concurrency safety.
-The value **MUST** be used after only **ONE** initialization. However, it
-can be more efficient, as there is no need to check whether other threads
-are also performing initialization at the same time.
+Unlike [`lazy_static`][1], which hardcodes the initialization routine in a macro, you can initialize the value in any way.
+
+[1]: https://docs.rs/lazy_static
 
 ## Examples
 
@@ -17,15 +16,42 @@ are also performing initialization at the same time.
 use lazyinit::LazyInit;
 
 static VALUE: LazyInit<u32> = LazyInit::new();
-assert!(!VALUE.is_init());
+assert!(!VALUE.is_inited());
 // println!("{}", *VALUE); // panic: use uninitialized value
-assert_eq!(VALUE.try_get(), None);
+assert_eq!(VALUE.get(), None);
 
-VALUE.init_by(233);
+VALUE.init_once(233);
 // VALUE.init_by(666); // panic: already initialized
-assert!(VALUE.is_init());
+assert!(VALUE.is_inited());
 assert_eq!(*VALUE, 233);
-assert_eq!(VALUE.try_get(), Some(&233));
+assert_eq!(VALUE.get(), Some(&233));
 ```
 
-[1]: https://docs.rs/lazy_static/latest/lazy_static/
+Only one of the multiple initializations can succeed:
+
+```rust
+use lazyinit::LazyInit;
+use std::time::Duration;
+
+const N: usize = 16;
+static VALUE: LazyInit<usize> = LazyInit::new();
+
+let threads = (0..N)
+    .map(|i| {
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(10));
+            VALUE.init_once(i)
+        })
+    })
+    .collect::<Vec<_>>();
+
+let mut ok = 0;
+for (i, thread) in threads.into_iter().enumerate() {
+    if thread.join().unwrap().is_some() {
+        ok += 1;
+        assert_eq!(*VALUE, i);
+    }
+}
+
+assert_eq!(ok, 1);
+```

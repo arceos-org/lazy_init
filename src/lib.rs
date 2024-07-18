@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![doc = include_str!("../README.md")]
 
 use core::cell::UnsafeCell;
@@ -28,52 +28,47 @@ impl<T> LazyInit<T> {
         }
     }
 
-    /// Initializes the value.
+    /// Initializes the value once and only once.
     ///
-    /// # Panics
-    ///
-    /// Panics if the value is already initialized.
-    pub fn init_by(&self, data: T) {
-        assert!(!self.is_init());
-        unsafe { (*self.data.get()).as_mut_ptr().write(data) };
-        self.inited.store(true, Ordering::Release);
+    /// Returns [`None`] if the value is already initialized.
+    pub fn init_once(&self, data: T) -> Option<&T> {
+        match self
+            .inited
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        {
+            Ok(_) => {
+                unsafe { (*self.data.get()).as_mut_ptr().write(data) };
+                Some(unsafe { self.force_get() })
+            }
+            Err(_) => None,
+        }
     }
 
     /// Checks whether the value is initialized.
-    pub fn is_init(&self) -> bool {
+    pub fn is_inited(&self) -> bool {
         self.inited.load(Ordering::Acquire)
     }
 
     /// Gets a reference to the value.
     ///
     /// Returns [`None`] if the value is not initialized.
-    pub fn try_get(&self) -> Option<&T> {
-        if self.is_init() {
-            unsafe { Some(&*(*self.data.get()).as_ptr()) }
+    pub fn get(&self) -> Option<&T> {
+        if self.is_inited() {
+            Some(unsafe { self.force_get() })
         } else {
             None
         }
     }
 
-    fn check_init(&self) {
-        if !self.is_init() {
-            panic!(
-                "Use uninitialized value: {:?}",
-                core::any::type_name::<Self>()
-            )
+    /// Gets a mutable reference to the value.
+    ///
+    /// Returns [`None`] if the value is not initialized.
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        if self.is_inited() {
+            Some(unsafe { self.force_get_mut() })
+        } else {
+            None
         }
-    }
-
-    #[inline]
-    fn get(&self) -> &T {
-        self.check_init();
-        unsafe { self.get_unchecked() }
-    }
-
-    #[inline]
-    fn get_mut(&mut self) -> &mut T {
-        self.check_init();
-        unsafe { self.get_mut_unchecked() }
     }
 
     /// Gets the reference to the value without checking if it is initialized.
@@ -83,7 +78,8 @@ impl<T> LazyInit<T> {
     /// Must be called after initialization.
     #[inline]
     pub unsafe fn get_unchecked(&self) -> &T {
-        &*(*self.data.get()).as_ptr()
+        debug_assert!(self.is_inited());
+        self.force_get()
     }
 
     /// Get a mutable reference to the value without checking if it is initialized.
@@ -93,13 +89,31 @@ impl<T> LazyInit<T> {
     /// Must be called after initialization.
     #[inline]
     pub unsafe fn get_mut_unchecked(&mut self) -> &mut T {
-        &mut *(*self.data.get()).as_mut_ptr()
+        debug_assert!(self.is_inited());
+        self.force_get_mut()
+    }
+
+    #[inline]
+    unsafe fn force_get(&self) -> &T {
+        (*self.data.get()).assume_init_ref()
+    }
+
+    #[inline]
+    unsafe fn force_get_mut(&mut self) -> &mut T {
+        (*self.data.get()).assume_init_mut()
+    }
+
+    fn panic_message(&self) -> ! {
+        panic!(
+            "Use uninitialized value: {:?}",
+            core::any::type_name::<Self>()
+        )
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for LazyInit<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.try_get() {
+        match self.get() {
             Some(s) => write!(f, "LazyInit {{ data: ")
                 .and_then(|()| s.fmt(f))
                 .and_then(|()| write!(f, "}}")),
@@ -108,24 +122,38 @@ impl<T: fmt::Debug> fmt::Debug for LazyInit<T> {
     }
 }
 
+impl<T> Default for LazyInit<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Deref for LazyInit<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
-        self.get()
+        if self.is_inited() {
+            unsafe { self.force_get() }
+        } else {
+            self.panic_message()
+        }
     }
 }
 
 impl<T> DerefMut for LazyInit<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
-        self.get_mut()
+        if self.is_inited() {
+            unsafe { self.force_get_mut() }
+        } else {
+            self.panic_message()
+        }
     }
 }
 
 impl<T> Drop for LazyInit<T> {
     fn drop(&mut self) {
-        if self.is_init() {
+        if self.is_inited() {
             unsafe { core::ptr::drop_in_place((*self.data.get()).as_mut_ptr()) };
         }
     }
