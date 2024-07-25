@@ -30,14 +30,36 @@ impl<T> LazyInit<T> {
 
     /// Initializes the value once and only once.
     ///
-    /// Returns [`None`] if the value is already initialized.
-    pub fn init_once(&self, data: T) -> Option<&T> {
+    /// # Panics
+    ///
+    /// Panics if the value is already initialized.
+    pub fn init_once(&self, data: T) -> &T {
         match self
             .inited
             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
         {
             Ok(_) => {
                 unsafe { (*self.data.get()).as_mut_ptr().write(data) };
+                unsafe { self.force_get() }
+            }
+            Err(_) => panic!("Already initialized"),
+        }
+    }
+
+    /// Performs an initialization routine once and only once.
+    ///
+    /// If the value is already initialized, the function will not be called
+    /// and a [`None`] will be returned.
+    pub fn call_once<F>(&self, f: F) -> Option<&T>
+    where
+        F: FnOnce() -> T,
+    {
+        match self
+            .inited
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        {
+            Ok(_) => {
+                unsafe { (*self.data.get()).as_mut_ptr().write(f()) };
                 Some(unsafe { self.force_get() })
             }
             Err(_) => None,

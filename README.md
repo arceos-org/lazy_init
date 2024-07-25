@@ -21,7 +21,7 @@ assert!(!VALUE.is_inited());
 assert_eq!(VALUE.get(), None);
 
 VALUE.init_once(233);
-// VALUE.init_by(666); // panic: already initialized
+// VALUE.init_once(666); // panic: already initialized
 assert!(VALUE.is_inited());
 assert_eq!(*VALUE, 233);
 assert_eq!(VALUE.get(), Some(&233));
@@ -40,7 +40,7 @@ let threads = (0..N)
     .map(|i| {
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(10));
-            VALUE.init_once(i)
+            VALUE.call_once(|| i)
         })
     })
     .collect::<Vec<_>>();
