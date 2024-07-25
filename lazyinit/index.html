@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="lazyinit"><title>lazyinit - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-5ca6ca2a1f83705a.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="lazyinit" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (c1a6199e9 2024-07-24)" data-channel="nightly" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../lazyinit/index.html">lazyinit</a><span class="version">0.2.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#structs">Structs</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">lazyinit</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/lazyinit/lib.rs.html#1-182">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="lazyinit"><a class="doc-anchor" href="#lazyinit">§</a>lazyinit</h2>
+<p><a href="https://crates.io/crates/lazyinit"><img src="https://img.shields.io/crates/v/lazyinit" alt="Crates.io" /></a>
+<a href="https://docs.rs/lazyinit"><img src="https://docs.rs/lazyinit/badge.svg" alt="Docs.rs" /></a>
+<a href="https://github.com/arceos-org/lazyinit/actions/workflows/ci.yml"><img src="https://github.com/arceos-org/lazyinit/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a></p>
+<p>Initialize a static value lazily.</p>
+<p>Unlike <a href="https://docs.rs/lazy_static"><code>lazy_static</code></a>, which hardcodes the initialization routine in a macro, you can initialize the value in any way.</p>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>lazyinit::LazyInit;
+
+<span class="kw">static </span>VALUE: LazyInit&lt;u32&gt; = LazyInit::new();
+<span class="macro">assert!</span>(!VALUE.is_inited());
+<span class="comment">// println!("{}", *VALUE); // panic: use uninitialized value
+</span><span class="macro">assert_eq!</span>(VALUE.get(), <span class="prelude-val">None</span>);
+
+VALUE.init_once(<span class="number">233</span>);
+<span class="comment">// VALUE.init_once(666); // panic: already initialized
+</span><span class="macro">assert!</span>(VALUE.is_inited());
+<span class="macro">assert_eq!</span>(<span class="kw-2">*</span>VALUE, <span class="number">233</span>);
+<span class="macro">assert_eq!</span>(VALUE.get(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">233</span>));</code></pre></div>
+<p>Only one of the multiple initializations can succeed:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>lazyinit::LazyInit;
+<span class="kw">use </span>std::time::Duration;
+
+<span class="kw">const </span>N: usize = <span class="number">16</span>;
+<span class="kw">static </span>VALUE: LazyInit&lt;usize&gt; = LazyInit::new();
+
+<span class="kw">let </span>threads = (<span class="number">0</span>..N)
+    .map(|i| {
+        std::thread::spawn(<span class="kw">move </span>|| {
+            std::thread::sleep(Duration::from_millis(<span class="number">10</span>));
+            VALUE.call_once(|| i)
+        })
+    })
+    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
+<span class="kw">let </span><span class="kw-2">mut </span>ok = <span class="number">0</span>;
+<span class="kw">for </span>(i, thread) <span class="kw">in </span>threads.into_iter().enumerate() {
+    <span class="kw">if </span>thread.join().unwrap().is_some() {
+        ok += <span class="number">1</span>;
+        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>VALUE, i);
+    }
+}
+
+<span class="macro">assert_eq!</span>(ok, <span class="number">1</span>);</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.LazyInit.html" title="struct lazyinit::LazyInit">LazyInit</a></div><div class="desc docblock-short">A wrapper of a lazy initialized value.</div></li></ul></section></div></main></body></html>

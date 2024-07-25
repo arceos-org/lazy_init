@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"lazyinit":[["impl&lt;T&gt; !<a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/marker/trait.Freeze.html\" title=\"trait core::marker::Freeze\">Freeze</a> for <a class=\"struct\" href=\"lazyinit/struct.LazyInit.html\" title=\"struct lazyinit::LazyInit\">LazyInit</a>&lt;T&gt;",1,["lazyinit::LazyInit"]]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
